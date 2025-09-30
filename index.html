@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Photo Booth - AI Background</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #ffffff;
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .app-container {
+            display: grid;
+            grid-template-columns: 1fr 320px;
+            height: 100vh;
+            gap: 0;
+        }
+
+        /* Main photo booth area */
+        .photo-booth {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 40px;
+            position: relative;
+            background: #ffffff;
+        }
+
+        .video-container {
+            position: relative;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 8px 32px rgba(0, 102, 255, 0.15);
+            background: #000;
+            margin-bottom: 60px;
+            border: 2px solid #f8f9fa;
+        }
+
+        video, canvas {
+            width: 800px;
+            height: 450px;
+            display: block;
+            border-radius: 16px;
+        }
+
+        /* Status indicator */
+        .status-indicator {
+            position: absolute;
+            top: 40px;
+            left: 40px;
+            padding: 12px 20px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            z-index: 10;
+        }
+
+        .status-indicator.loading {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+
+        .status-indicator.ready {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+
+        .status-indicator.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f1b0b7;
+        }
+
+        /* Camera Button */
+        .camera-controls {
+            position: absolute;
+            bottom: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 20px;
+            align-items: center;
+        }
+
+        .capture-btn {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            border: 4px solid #0066ff;
+            background: #ffffff;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            box-shadow: 0 4px 16px rgba(0, 102, 255, 0.2);
+        }
+
+        .capture-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 6px 20px rgba(0, 102, 255, 0.3);
+        }
+
+        .capture-btn:active {
+            transform: scale(0.95);
+        }
+
+        .capture-btn::before {
+            content: '';
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: #0066ff;
+            transition: all 0.2s ease;
+        }
+
+        .capture-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: scale(1);
+        }
+
+        .start-camera-btn {
+            padding: 16px 32px;
+            border: 2px solid #0066ff;
+            border-radius: 8px;
+            background: #ffffff;
+            color: #0066ff;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size: 16px;
+        }
+
+        .start-camera-btn:hover {
+            background: #0066ff;
+            color: #ffffff;
+        }
+
+        .capture-feedback {
+            position: absolute;
+            top: -60px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #0066ff;
+            color: #ffffff;
+            padding: 12px 20px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .capture-feedback.show {
+            opacity: 1;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            background: #f8f9fa;
+            padding: 40px 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 30px;
+            border-left: 1px solid #e9ecef;
+        }
+
+        .sidebar-title {
+            font-size: 24px;
+            font-weight: 700;
+            color: #333;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .backgrounds-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 16px;
+        }
+
+        .background-option {
+            aspect-ratio: 16/9;
+            border-radius: 12px;
+            overflow: hidden;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border: 3px solid transparent;
+            position: relative;
+        }
+
+        .background-option:hover {
+            transform: scale(1.02);
+            border-color: #0066ff;
+        }
+
+        .background-option.selected {
+            border-color: #0066ff;
+            transform: scale(1.02);
+            box-shadow: 0 4px 16px rgba(0, 102, 255, 0.2);
+        }
+
+        .background-option img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .background-option.remove-bg {
+            background: #0066ff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+            font-size: 13px;
+            text-align: center;
+        }
+
+        .background-option.original {
+            background: #ffffff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #333;
+            font-weight: 600;
+            font-size: 13px;
+            text-align: center;
+            border: 2px solid #dee2e6;
+        }
+
+        /* Controls section */
+        .controls-section {
+            border-top: 1px solid #dee2e6;
+            padding-top: 30px;
+        }
+
+        .control-btn {
+            width: 100%;
+            padding: 16px;
+            border: 2px solid #0066ff;
+            border-radius: 8px;
+            background: #ffffff;
+            color: #0066ff;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            margin-bottom: 12px;
+            font-size: 16px;
+        }
+
+        .control-btn:hover {
+            background: #0066ff;
+            color: #ffffff;
+        }
+
+        .control-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .control-btn.stop {
+            border-color: #dc3545;
+            color: #dc3545;
+        }
+
+        .control-btn.stop:hover {
+            background: #dc3545;
+            color: #ffffff;
+        }
+
+        /* Mobile responsive */
+        @media (max-width: 1200px) {
+            .app-container {
+                grid-template-columns: 1fr;
+                grid-template-rows: 1fr auto;
+            }
+
+            .sidebar {
+                padding: 30px 20px;
+                max-height: 400px;
+                overflow-y: auto;
+            }
+
+            .backgrounds-grid {
+                grid-template-columns: repeat(4, 1fr);
+                gap: 12px;
+            }
+
+            video, canvas {
+                width: 90vw;
+                height: calc(90vw * 9/16);
+                max-width: 700px;
+                max-height: 394px;
+            }
+
+            .photo-booth {
+                padding: 20px;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .backgrounds-grid {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 10px;
+            }
+
+            .capture-btn {
+                width: 70px;
+                height: 70px;
+            }
+
+            .capture-btn::before {
+                width: 50px;
+                height: 50px;
+            }
+
+            video, canvas {
+                width: 95vw;
+                height: calc(95vw * 9/16);
+                max-width: 500px;
+                max-height: 281px;
+            }
+        }
+
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Main Photo Booth Area -->
+        <div class="photo-booth">
+            <div class="status-indicator loading" id="status">
+                Loading AI model...
+            </div>
+
+            <div class="video-container">
+                <video id="webcam" autoplay muted playsinline class="hidden"></video>
+                <canvas id="output"></canvas>
+            </div>
+
+            <div class="camera-controls">
+                <button id="startBtn" class="start-camera-btn">Start Camera</button>
+                <button id="captureBtn" class="capture-btn" disabled></button>
+                <div class="capture-feedback" id="captureFeedback">Photo Saved!</div>
+            </div>
+        </div>
+
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <h2 class="sidebar-title">Choose Background</h2>
+
+            <div class="backgrounds-grid">
+                <div class="background-option original" data-type="original">
+                    Original
+                </div>
+                <div class="background-option remove-bg" data-type="remove">
+                    Remove Background
+                </div>
+                <div class="background-option" data-bg="backgrounds/1.jpg">
+                    <img src="backgrounds/1.jpg" alt="Background 1">
+                </div>
+                <div class="background-option" data-bg="backgrounds/2.jpg">
+                    <img src="backgrounds/2.jpg" alt="Background 2">
+                </div>
+                <div class="background-option" data-bg="backgrounds/3.jpg">
+                    <img src="backgrounds/3.jpg" alt="Background 3">
+                </div>
+                <div class="background-option" data-bg="backgrounds/4.jpg">
+                    <img src="backgrounds/4.jpg" alt="Background 4">
+                </div>
+                <div class="background-option" data-bg="backgrounds/5.jpg">
+                    <img src="backgrounds/5.jpg" alt="Background 5">
+                </div>
+                <div class="background-option" data-bg="backgrounds/6.jpg">
+                    <img src="backgrounds/6.jpg" alt="Background 6">
+                </div>
+            </div>
+
+            <div class="controls-section">
+                <button id="stopBtn" class="control-btn stop" disabled>Stop Camera</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- TensorFlow.js and MediaPipe libraries -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core@4.15.0/dist/tf-core.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl@4.15.0/dist/tf-backend-webgl.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/body-segmentation@1.0.2/dist/body-segmentation.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation@0.1.1675465747/selfie_segmentation.js"></script>
+
+    <script src="app.js"></script>
+</body>
+</html>
